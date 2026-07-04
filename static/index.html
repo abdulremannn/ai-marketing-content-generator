@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>AI Marketing Content Generator (Internal)</title>
+<style>
+  :root {
+    --sp-1: 8px; --sp-2: 13px; --sp-3: 21px; --sp-4: 34px; --sp-5: 55px; --sp-6: 89px;
+    --accent: #2563eb;
+    --accent-dim: rgba(37, 99, 235, 0.10);
+    --accent-line: rgba(37, 99, 235, 0.45);
+    --bg-deep: #f4f6f8;
+    --glass: #ffffff;
+    --glass-strong: #e7eaee;
+    --glass-border: #e3e6ea;
+    --text: #14181f;
+    --text-dim: #5b6270;
+    --text-faint: #8b93a1;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; min-height: 100vh;
+    background:
+      radial-gradient(1100px 600px at 12% -10%, #eaf1fd 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #eef4fb 0%, transparent 55%),
+      var(--bg-deep);
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em; color: var(--text);
+  }
+  ::selection { background: var(--accent-dim); color: var(--accent); }
+  *:focus-visible {
+    outline: 2px solid var(--accent-line);
+    outline-offset: 2px;
+    border-radius: 4px;
+    transition: outline-offset 0.15s var(--ease);
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--glass-strong); border-radius: 999px; border: 2px solid var(--glass); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  .icon { width: 15px; height: 15px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+  .layout { display: grid; grid-template-columns: 1fr 1.3fr; gap: var(--sp-4); max-width: 1440px; margin: var(--sp-4) auto; padding: 0 var(--sp-4); align-items: start; }
+  @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  .card { background: var(--glass); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); border: 1px solid var(--glass-border); border-radius: var(--sp-4); padding: var(--sp-4); box-shadow: 0 10px 30px rgba(20,24,31,0.06); margin-bottom: var(--sp-3); transition: box-shadow 0.25s var(--ease); }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-1); }
+  .card-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: var(--sp-2); }
+  .card-title .icon { width: 19px; height: 19px; color: var(--accent); }
+  .step-label { font-size: 0.7rem; letter-spacing: 0.08em; color: var(--text-faint); font-weight: 700; }
+  .field-label { font-size: 0.7rem; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 700; margin: var(--sp-3) 0 var(--sp-1); display: flex; align-items: center; gap: var(--sp-1); }
+  .field-label .icon { color: var(--accent); }
+  select, input[type=text], textarea {
+    width: 100%; padding: var(--sp-2) var(--sp-2) var(--sp-2) 38px;
+    border: 1px solid var(--glass-border); border-radius: var(--sp-2); font-size: 0.9rem; font-family: inherit;
+    background: #fafbfc; color: var(--text);
+    background-repeat: no-repeat; background-position: 12px center; background-size: 15px 15px;
+    transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease), background-color 0.18s var(--ease);
+  }
+  select { appearance: none; -webkit-appearance: none; cursor: pointer; }
+  textarea { resize: vertical; padding-left: var(--sp-2); }
+  select:hover, input[type=text]:hover, textarea:hover { border-color: var(--glass-strong); }
+  select:focus, input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-dim); background-color: #ffffff; }
+  .field-error { border-color: #e11d48 !important; animation: fieldShake 0.35s var(--ease); }
+  .field-error:focus { box-shadow: 0 0 0 3px rgba(225,29,72,0.15) !important; }
+  @keyframes fieldShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  ::placeholder { color: var(--text-faint); }
+  .field-icon-wrap { position: relative; }
+  .field-icon-wrap .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+  .field-icon-wrap select, .field-icon-wrap input[type=text] { padding-left: 38px; }
+  .field-icon-wrap select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6270' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat; background-position: right 12px center; background-size: 14px 14px; padding-right: 34px;
+  }
+  select option { background: #ffffff; color: var(--text); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+  .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  .toggle {
+    border: 1px solid var(--glass-border); border-radius: var(--sp-2); padding: var(--sp-2) var(--sp-2); cursor: pointer;
+    background: #fafbfc; font-size: 0.88rem; display: flex; align-items: center; gap: var(--sp-2);
+    user-select: none; transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease), transform 0.12s var(--ease), color 0.18s var(--ease);
+  }
+  .toggle:hover { border-color: var(--glass-strong); }
+  .toggle:active { transform: scale(0.98); }
+  .toggle .icon { color: var(--text-dim); transition: color 0.18s var(--ease); }
+  .toggle.active { background: var(--accent-dim); border-color: var(--accent-line); color: var(--accent); font-weight: 600; }
+  .toggle.active .icon { color: var(--accent); }
+  .toggle.disabled { opacity: 0.35; pointer-events: none; }
+  .toggle input { accent-color: var(--accent); }
+  .format-row { margin-top: var(--sp-1); margin-left: var(--sp-1); display: none; gap: var(--sp-1); flex-wrap: wrap; }
+  .format-row.visible { display: flex; }
+  .format-pill { border: 1px solid var(--glass-border); border-radius: 999px; padding: 4px 11px; font-size: 0.74rem; cursor: pointer; background: #fafbfc; color: var(--text-dim); transition: background-color 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.12s var(--ease); }
+  .format-pill:hover { border-color: var(--glass-strong); }
+  .format-pill:active { transform: scale(0.95); }
+  .format-pill.active { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
+  .generate-btn {
+    width: 100%; background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #ffffff; border: none; border-radius: var(--sp-2);
+    padding: var(--sp-3) 0; font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-top: var(--sp-3);
+    display: flex; align-items: center; justify-content: center; gap: var(--sp-1);
+    box-shadow: 0 8px 20px rgba(37,99,235,0.22); transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), filter 0.15s var(--ease);
+  }
+  .generate-btn .icon { color: #ffffff; width: 17px; height: 17px; }
+  .generate-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(37,99,235,0.3); }
+  .generate-btn:active:not(:disabled) { transform: translateY(0) scale(0.98); box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+  .generate-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px; background: var(--accent-dim); color: var(--accent); font-size: 0.74rem; font-weight: 600; margin: 0 6px 6px 0; border: 1px solid var(--accent-line); }
+  .empty-state { border: 1px dashed var(--glass-border); border-radius: var(--sp-2); padding: var(--sp-5) var(--sp-3); text-align: center; color: var(--text-dim); font-size: 0.9rem; }
+  .error-box { background: #fdecec; border: 1px solid #f5c2c2; color: #c0392b; border-radius: var(--sp-2); padding: var(--sp-2) var(--sp-3); font-size: 0.85rem; margin-top: var(--sp-2); }
+  .preview-card { border: 1px solid var(--glass-border); border-radius: var(--sp-3); overflow: hidden; margin-bottom: var(--sp-3); background: var(--glass); box-shadow: 0 8px 24px rgba(20,24,31,0.08); transition: box-shadow 0.25s var(--ease), transform 0.25s var(--ease); }
+  .preview-card:hover { box-shadow: 0 14px 34px rgba(20,24,31,0.11); transform: translateY(-2px); }
+  .preview-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
+  .preview-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0ea5e9); flex-shrink: 0; }
+  .preview-brand { font-weight: 700; font-size: 0.88rem; }
+  .preview-sub { font-size: 0.72rem; color: var(--text-faint); }
+  .preview-img-wrap { width: 100%; background: #eef0f3; position: relative; }
+  .preview-img-wrap img { width: 100%; display: block; transition: opacity 0.25s ease; }
+  .preview-body { padding: var(--sp-2) var(--sp-3); }
+  .prev-section { padding: var(--sp-2) 0; border-bottom: 1px solid var(--glass-border); }
+  .prev-section:last-child { border-bottom: none; padding-bottom: 0; }
+  .prev-section:first-child { padding-top: 0; }
+  .preview-caption { font-size: 0.86rem; line-height: 1.5; white-space: pre-wrap; color: var(--text); }
+  .preview-hashtags { color: #2563eb; font-size: 0.82rem; margin-top: 6px; }
+  .preview-cta-btn { display: inline-flex; align-items:center; gap:6px; margin-top: var(--sp-1); background: var(--accent-dim); color: var(--accent); font-size: 0.8rem; font-weight: 600; padding: 7px 15px; border-radius: var(--sp-1); }
+  .ar-square { aspect-ratio: 1/1; }
+  .ar-vertical { aspect-ratio: 9/16; max-width: 320px; margin: 0 auto; }
+  .ar-portrait { aspect-ratio: 4/5; }
+  .ar-landscape { aspect-ratio: 16/9; }
+  .headline-block { padding: var(--sp-2) var(--sp-3); border-top: 1px solid var(--glass-border); }
+  .overlay-line { font-size: 0.86rem; margin-bottom: 6px; display: flex; align-items: baseline; gap: var(--sp-1); }
+  .overlay-line:last-child { margin-bottom: 0; }
+  .overlay-tag { font-size: 0.65rem; letter-spacing: 0.04em; font-weight: 700; color: var(--text-faint); text-transform: uppercase; min-width: 66px; flex-shrink: 0; }
+  .headline-options { display: flex; gap: var(--sp-2); margin-top: 6px; flex-wrap: wrap; }
+  .headline-opt { border: 1px solid var(--glass-border); border-radius: var(--sp-1); padding: var(--sp-1) var(--sp-2); font-size: 0.84rem; cursor: pointer; flex: 1 1 45%; background: #fafbfc; transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.12s var(--ease); }
+  .headline-opt:hover { border-color: var(--glass-strong); }
+  .headline-opt:active { transform: scale(0.98); }
+  .headline-opt.selected { border-color: var(--accent-line); background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+  .regen-btn { margin-top: var(--sp-1); font-size: 0.78rem; background: #fafbfc; border: 1px solid var(--glass-border); border-radius: var(--sp-1); padding: 5px 11px; cursor: pointer; color: var(--text-dim); display: inline-flex; align-items: center; gap: 5px; transition: border-color 0.15s var(--ease), color 0.15s var(--ease), transform 0.12s var(--ease); }
+  .regen-btn:hover { border-color: var(--accent-line); color: var(--accent); }
+  .regen-btn:active:not(:disabled) { transform: scale(0.96); }
+  .action-btn { font-size: 0.75rem; background: #fafbfc; border: 1px solid var(--glass-border); border-radius: var(--sp-1); padding: 4px 10px; cursor: pointer; color: var(--text-dim); margin-left: 6px; display: inline-flex; align-items: center; gap: 5px; transition: border-color 0.15s var(--ease), color 0.15s var(--ease), transform 0.12s var(--ease); }
+  .action-btn:hover { border-color: var(--accent-line); color: var(--accent); }
+  .action-btn:active:not(:disabled) { transform: scale(0.94); }
+  .row-with-actions { display: flex; justify-content: space-between; align-items: center; }
+  .img-revise { padding: var(--sp-2) var(--sp-3); border-top: 1px solid var(--glass-border); }
+  .img-revise-row { display: flex; gap: var(--sp-1); }
+  .img-revise-row .field-icon-wrap { flex: 1; }
+  .img-revise-row input { font-size: 0.84rem; font-family: inherit; }
+  .img-revise-btn { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #ffffff; border: none; border-radius: var(--sp-1); padding: 0 var(--sp-2); font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: filter 0.15s var(--ease), transform 0.15s var(--ease); }
+  .img-revise-btn:hover { filter: brightness(1.08); }
+  .img-revise-btn:active:not(:disabled) { transform: scale(0.97); }
+  .img-revise-btn:disabled { opacity: 0.6; cursor: default; }
+  .img-download { position: absolute; top: 10px; right: 10px; background: rgba(20,24,31,0.68); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: var(--sp-1); padding: 6px 11px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.15s var(--ease), transform 0.12s var(--ease); }
+  .img-download:hover { background: rgba(20,24,31,0.85); }
+  .img-download:active { transform: scale(0.95); }
+  .img-regen-overlay { position: absolute; inset: 0; background: rgba(6,9,16,0.55); overflow: hidden; z-index: 2; animation: overlayFadeIn 0.2s ease both; }
+  .img-regen-overlay::before { content: ""; position: absolute; inset: -20%; background: linear-gradient(115deg, transparent 35%, rgba(37,99,235,0.35) 47%, rgba(37,99,235,0.6) 50%, rgba(37,99,235,0.35) 53%, transparent 65%); background-size: 260% 260%; background-position: 0% 0%; animation: slashSweep 1.6s linear infinite; }
+  .img-regen-label { position: absolute; bottom: 12px; left: 12px; background: rgba(6,9,16,0.75); color: #fff; font-size: 0.75rem; font-weight: 600; padding: 6px 10px; border-radius: var(--sp-1); z-index: 3; display: flex; align-items: center; gap: 6px; }
+  @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slashSweep { 0% { background-position: 0% 0%; } 100% { background-position: 100% 100%; } }
+  .card-flash { animation: flashHighlight 1s var(--ease); }
+  @keyframes flashHighlight { 0% { box-shadow: 0 0 0 2px var(--accent); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
+  .platform-tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: var(--sp-2) var(--sp-3) 0; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton-card { border: 1px solid var(--glass-border); border-radius: var(--sp-3); overflow: hidden; margin-bottom: var(--sp-3); background: var(--glass); box-shadow: 0 8px 24px rgba(20,24,31,0.06); }
+  .skeleton-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3); }
+  .skel-block { background: linear-gradient(90deg, #eef0f2 25%, #f7f8f9 37%, #eef0f2 63%); background-size: 400% 100%; animation: shimmer 1.3s ease-in-out infinite; border-radius: 6px; }
+  .skel-avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
+  .skel-line { height: 10px; margin-bottom: var(--sp-1); }
+  .skel-img { width: 100%; aspect-ratio: 1/1; }
+  .skel-body { padding: var(--sp-3); }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+  .fade-in { animation: fadeSlideIn 0.5s var(--ease) both; }
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .prompt-debug { border-top: 1px solid var(--glass-border); }
+  .prompt-debug summary { cursor: pointer; padding: var(--sp-2) var(--sp-3); font-size: 0.72rem; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 700; list-style: none; display: flex; justify-content: space-between; align-items: center; transition: color 0.15s var(--ease); }
+  .prompt-debug summary:hover { color: var(--text); }
+  .prompt-debug summary::-webkit-details-marker { display: none; }
+  .prompt-debug summary .chevron { transition: transform 0.25s var(--ease); }
+  .prompt-debug[open] summary .chevron { transform: rotate(90deg); }
+  .prompt-debug summary .icon { color: var(--accent); }
+  .prompt-debug pre { margin: 0 var(--sp-3) var(--sp-3); padding: var(--sp-2) var(--sp-2); background: #f7f8f9; border: 1px solid var(--glass-border); border-radius: var(--sp-1); font-size: 0.76rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: #3a3f47; max-height: 260px; overflow-y: auto; animation: fadeSlideIn 0.25s var(--ease) both; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Content Generation Settings</div>
+      <div class="step-label">STEP 1</div>
+    </div>
+
+    <div class="field-label"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>CAMPAIGN GOAL</div>
+    <div class="field-icon-wrap">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+      <select id="campaignGoal"></select>
+    </div>
+
+    <div class="row2">
+      <div>
+        <div class="field-label"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C22.297 6.012 17.766 2 12 2z"/></svg>CONTENT TONE</div>
+        <div class="field-icon-wrap">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C22.297 6.012 17.766 2 12 2z"/></svg>
+          <select id="contentTone"></select>
+        </div>
+      </div>
+      <div>
+        <div class="field-label"><svg class="icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>TARGET AUDIENCE</div>
+        <div class="field-icon-wrap">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <input type="text" id="targetAudience" value="Homeowners aged 30-55 in suburban areas" />
+        </div>
+      </div>
+    </div>
+
+    <div class="field-label"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>TARGET PLATFORM</div>
+    <div id="platformGrid" class="toggle-grid"></div>
+
+    <div class="field-label"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>KEY MESSAGE</div>
+    <textarea id="keyMessage" rows="3">Highlight our fall HVAC tune-up offer with limited-time pricing.</textarea>
+
+    <div class="field-label"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>CONTENT TYPE</div>
+    <div id="contentTypeGrid" class="toggle-grid"></div>
+
+    <div class="field-label" id="toiLabel"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>TEXT ON VISUALS</div>
+    <div class="toggle-grid" id="toiSection">
+      <div class="toggle" id="textOnImageOff">
+        <input type="radio" name="toi" checked />
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Clean image (no text)</span>
+      </div>
+      <div class="toggle" id="textOnImageOn">
+        <input type="radio" name="toi" />
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+        <span>Bake headline/CTA into image (preview only — text can misspell)</span>
+      </div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn">
+      <svg class="icon" viewBox="0 0 24 24"><path d="m12 3-1.9 4.1L6 9l4.1 1.9L12 15l1.9-4.1L18 9l-4.1-1.9Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+      Generate Content
+    </button>
+    <div id="errorBox"></div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Content Preview &amp; Editor</div>
+        <div class="step-label">STEP 2</div>
+      </div>
+      <div id="selectionPills"></div>
+      <div id="step2Body"><div class="empty-state">Fill in Step 1 and click <strong>Generate Content</strong> to see results here.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin.startsWith("http") ? window.location.origin : "http://localhost:8000";
+let OPTIONS = null;
+let selectedPlatforms = new Set(["Facebook"]);
+let selectedContentTypes = new Set(["Headlines", "Social Posts"]);
+let platformFormats = {};
+let textOnImage = false;
+
+const ICONS = {
+  platform: `<svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
+  contentType: `<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+  headline: `<svg class="icon" viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>`,
+  caption: `<svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  hashtag: `<svg class="icon" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>`,
+  cta: `<svg class="icon" viewBox="0 0 24 24"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg>`,
+  copy: `<svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  regen: `<svg class="icon" viewBox="0 0 24 24"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`,
+  download: `<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  image: `<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
+  prompt: `<svg class="icon" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+  edit: `<svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+};
+
+document.getElementById("textOnImageOff").addEventListener("click", () => {
+  textOnImage = false;
+  document.getElementById("textOnImageOff").classList.add("active");
+  document.getElementById("textOnImageOn").classList.remove("active");
+  document.querySelector("#textOnImageOff input").checked = true;
+});
+document.getElementById("textOnImageOn").addEventListener("click", () => {
+  textOnImage = true;
+  document.getElementById("textOnImageOn").classList.add("active");
+  document.getElementById("textOnImageOff").classList.remove("active");
+  document.querySelector("#textOnImageOn input").checked = true;
+});
+document.getElementById("textOnImageOff").classList.add("active");
+
+document.getElementById("targetAudience").addEventListener("input", (e) => e.target.classList.remove("field-error"));
+document.getElementById("keyMessage").addEventListener("input", (e) => e.target.classList.remove("field-error"));
+
+async function loadOptions() {
+  const res = await fetch(`${API}/options`);
+  OPTIONS = await res.json();
+  const goalSel = document.getElementById("campaignGoal");
+  OPTIONS.campaign_goals.forEach(g => goalSel.appendChild(new Option(g, g)));
+  const toneSel = document.getElementById("contentTone");
+  OPTIONS.content_tones.forEach(t => toneSel.appendChild(new Option(t, t)));
+  renderPlatformGrid();
+  renderContentTypeGrid();
+}
+
+function renderPlatformGrid() {
+  const grid = document.getElementById("platformGrid");
+  grid.innerHTML = "";
+  OPTIONS.platforms.forEach(p => {
+    const wrap = document.createElement("div");
+    const active = selectedPlatforms.has(p);
+    wrap.innerHTML = `
+      <div class="toggle ${active ? "active" : ""}" data-platform="${p}">
+        <input type="checkbox" ${active ? "checked" : ""} />
+        ${ICONS.platform}
+        <span>${p}</span>
+      </div>
+      <div class="format-row ${active ? "visible" : ""}" data-format-row="${p}"></div>
+    `;
+    grid.appendChild(wrap);
+    wrap.querySelector(".toggle").addEventListener("click", () => { togglePlatform(p); });
+    renderFormatOptions(p);
+  });
+}
+
+function togglePlatform(p) {
+  if (selectedPlatforms.has(p)) selectedPlatforms.delete(p);
+  else selectedPlatforms.add(p);
+  renderPlatformGrid();
+}
+
+function renderFormatOptions(platform) {
+  const row = document.querySelector(`[data-format-row="${platform}"]`);
+  if (!row) return;
+  const formats = OPTIONS.platform_formats[platform] || [];
+  if (!platformFormats[platform]) platformFormats[platform] = formats[0]?.id;
+  row.innerHTML = formats.map(f => `
+    <span class="format-pill ${platformFormats[platform] === f.id ? "active" : ""}" data-format-id="${f.id}" data-platform="${platform}">
+      ${f.label} · ${f.aspect_ratio}
+    </span>
+  `).join("");
+  row.querySelectorAll(".format-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      platformFormats[platform] = pill.dataset.formatId;
+      renderFormatOptions(platform);
+    });
+  });
+}
+
+function renderContentTypeGrid() {
+  const grid = document.getElementById("contentTypeGrid");
+  grid.innerHTML = "";
+  const labels = { "Headlines": "Headlines", "Social Posts": "Social Posts", "Hashtags": "Hashtags", "Call To Action": "Call-to-Action", "AI Image": "AI Image", "Complete Package": "Complete Package (everything)" };
+  const icons = { "Headlines": ICONS.headline, "Social Posts": ICONS.caption, "Hashtags": ICONS.hashtag, "Call To Action": ICONS.cta, "AI Image": ICONS.image, "Complete Package": ICONS.contentType };
+  const order = ["Headlines", "Social Posts", "Hashtags", "Call To Action", "AI Image", "Complete Package"];
+  order.forEach(ct => {
+    const active = selectedContentTypes.has(ct);
+    const div = document.createElement("div");
+    div.className = `toggle ${active ? "active" : ""}`;
+    div.innerHTML = `<input type="checkbox" ${active ? "checked" : ""} />${icons[ct]}<span>${labels[ct]}</span>`;
+    div.addEventListener("click", () => {
+      if (ct === "Complete Package") {
+        if (selectedContentTypes.has("Complete Package")) { selectedContentTypes.clear(); }
+        else { order.forEach(o => selectedContentTypes.add(o)); }
+      } else {
+        if (selectedContentTypes.has(ct)) selectedContentTypes.delete(ct);
+        else selectedContentTypes.add(ct);
+        selectedContentTypes.delete("Complete Package");
+      }
+      renderContentTypeGrid();
+      updateTextOnImageVisibility();
+    });
+    grid.appendChild(div);
+  });
+  updateTextOnImageVisibility();
+}
+
+function updateTextOnImageVisibility() {
+  const hasImage = selectedContentTypes.has("AI Image") || selectedContentTypes.has("Complete Package");
+  const section = document.getElementById("toiSection");
+  const label = document.getElementById("toiLabel");
+  section.querySelectorAll(".toggle").forEach(t => t.classList.toggle("disabled", !hasImage));
+  label.style.opacity = hasImage ? "1" : "0.4";
+  if (!hasImage && textOnImage) {
+    textOnImage = false;
+    document.getElementById("textOnImageOff").classList.add("active");
+    document.getElementById("textOnImageOn").classList.remove("active");
+    document.querySelector("#textOnImageOff input").checked = true;
+  }
+}
+
+function buildRequestBody() {
+  return {
+    campaign_goal: document.getElementById("campaignGoal").value,
+    content_tone: document.getElementById("contentTone").value,
+    target_audience: document.getElementById("targetAudience").value,
+    target_platforms: Array.from(selectedPlatforms),
+    key_message: document.getElementById("keyMessage").value,
+    content_types: Array.from(selectedContentTypes),
+    platform_formats: platformFormats,
+    text_on_image: textOnImage,
+  };
+}
+
+async function generate() {
+  const errorBox = document.getElementById("errorBox");
+  errorBox.innerHTML = "";
+
+  const targetAudienceEl = document.getElementById("targetAudience");
+  const keyMessageEl = document.getElementById("keyMessage");
+  const targetAudience = targetAudienceEl.value.trim();
+  const keyMessage = keyMessageEl.value.trim();
+
+  const errors = [];
+  if (!targetAudience) errors.push({ field: targetAudienceEl, msg: "Target audience cannot be empty." });
+  if (!keyMessage) errors.push({ field: keyMessageEl, msg: "Key message cannot be empty." });
+  if (selectedPlatforms.size === 0) errors.push({ field: null, msg: "Select at least one platform." });
+  if (selectedContentTypes.size === 0) errors.push({ field: null, msg: "Select at least one content type." });
+
+  if (errors.length) {
+    errorBox.innerHTML = errors.map(e => `<div class="error-box">${escapeHtml(e.msg)}</div>`).join("");
+    errors.forEach(e => e.field?.classList.add("field-error"));
+    errors[0].field?.focus();
+    return;
+  }
+  targetAudienceEl.classList.remove("field-error");
+  keyMessageEl.classList.remove("field-error");
+
+  const btn = document.getElementById("generateBtn");
+  const btnOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Generating...`;
+
+  const body = buildRequestBody();
+  renderSelectionPills(body);
+  renderSkeletons(body.target_platforms.length);
+
+  try {
+    const res = await fetch(`${API}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Generation failed.");
+    }
+    const data = await res.json();
+    renderResults(data.results, body);
+  } catch (e) {
+    errorBox.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+    document.getElementById("step2Body").innerHTML = `<div class="empty-state">Fill in Step 1 and click <strong>Generate Content</strong> to see results here.</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = btnOriginal;
+  }
+}
+
+function renderSkeletons(count) {
+  const container = document.getElementById("step2Body");
+  container.innerHTML = "";
+  for (let i = 0; i < Math.max(count, 1); i++) {
+    const el = document.createElement("div");
+    el.className = "skeleton-card";
+    el.innerHTML = `
+      <div class="skeleton-head">
+        <div class="skel-block skel-avatar"></div>
+        <div style="flex:1;">
+          <div class="skel-block skel-line" style="width:35%;"></div>
+          <div class="skel-block skel-line" style="width:20%; margin-bottom:0;"></div>
+        </div>
+      </div>
+      <div class="skel-block skel-img"></div>
+      <div class="skel-body">
+        <div class="skel-block skel-line" style="width:90%;"></div>
+        <div class="skel-block skel-line" style="width:75%;"></div>
+        <div class="skel-block skel-line" style="width:50%; margin-bottom:0;"></div>
+      </div>
+    `;
+    container.appendChild(el);
+  }
+}
+
+function renderSelectionPills(body) {
+  const pillsBox = document.getElementById("selectionPills");
+  let html = `<span class="pill">Goal: ${body.campaign_goal}</span><span class="pill">Tone: ${body.content_tone}</span>`;
+  body.target_platforms.forEach(p => html += `<span class="pill">${p}</span>`);
+  body.content_types.forEach(ct => html += `<span class="pill">${ct}</span>`);
+  pillsBox.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  if (str == null) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function orientationClass(orientation) {
+  return { vertical: "ar-vertical", square: "ar-square", portrait: "ar-portrait", landscape: "ar-landscape" }[orientation] || "ar-square";
+}
+
+function renderResults(results, body) {
+  renderSelectionPills(body);
+  const container = document.getElementById("step2Body");
+  container.innerHTML = "";
+
+  Object.entries(results).forEach(([platformName, content], index) => {
+    const fmtId = body.platform_formats[platformName];
+    const fmt = (OPTIONS.platform_formats[platformName] || []).find(f => f.id === fmtId) || (OPTIONS.platform_formats[platformName] || [])[0];
+    const orientation = fmt ? fmt.orientation : "square";
+
+    const card = document.createElement("div");
+    card.className = "preview-card fade-in";
+    card.style.animationDelay = `${index * 90}ms`;
+
+    let imgHtml = "";
+    if (content.image_path) {
+      const cacheBust = content._imgVersion || Date.now();
+      const imgUrl = `${API}/${content.image_path.replace(/\\/g, "/")}?v=${cacheBust}`;
+      imgHtml = `<div class="preview-img-wrap ${orientationClass(orientation)}" style="position:relative;">
+        <img src="${imgUrl}" />
+        <a class="img-download" href="${imgUrl}" download>${ICONS.download} Download</a>
+      </div>`;
+    }
+
+    let headlineHtml = "";
+    if (content.headlines) {
+      const opts = [content.headlines.primary, ...(content.headlines.alternatives || [])].filter(Boolean);
+      headlineHtml = `
+        <div class="headline-block">
+          <div class="row-with-actions">
+            <div class="field-label" style="margin-top:0;">${ICONS.headline}HEADLINE (select one)</div>
+            <button class="action-btn" data-copy-headline>${ICONS.copy}Copy</button>
+          </div>
+          <div class="headline-options" data-platform="${platformName}">
+            ${opts.map((h, i) => `<div class="headline-opt ${i === 0 ? "selected" : ""}" data-text="${encodeURIComponent(h)}">${escapeHtml(h)}</div>`).join("")}
+          </div>
+          <button class="regen-btn" data-regen="${platformName}">${ICONS.regen}Regenerate headlines</button>
+        </div>
+      `;
+    }
+
+    let imageTextHtml = "";
+    if (content.image_text) {
+      const it = content.image_text;
+      imageTextHtml = `
+        <div class="headline-block">
+          <div class="field-label" style="margin-top:0;">${ICONS.image}IMAGE OVERLAY TEXT (as baked into image)</div>
+          ${it.headline ? `<div class="overlay-line"><span class="overlay-tag">Headline</span>${escapeHtml(it.headline)}</div>` : ""}
+          ${it.supporting ? `<div class="overlay-line"><span class="overlay-tag">Supporting</span>${escapeHtml(it.supporting)}</div>` : ""}
+          ${it.cta ? `<div class="overlay-line"><span class="overlay-tag">CTA</span>${escapeHtml(it.cta)}</div>` : ""}
+        </div>
+      `;
+    }
+
+    let promptDebugHtml = "";
+    if (content.final_image_prompt) {
+      promptDebugHtml = `
+        <details class="prompt-debug">
+          <summary>
+            <span><span class="chevron">${ICONS.prompt}</span> FINAL IMAGE PROMPT (sent to model)</span>
+            <button class="action-btn" data-copy-prompt>${ICONS.copy}Copy</button>
+          </summary>
+          <pre data-prompt-text>${escapeHtml(content.final_image_prompt)}</pre>
+        </details>
+        <div class="img-revise">
+          <div class="field-label" style="margin-top:0;">${ICONS.edit}DON'T LIKE THE IMAGE? DESCRIBE WHAT TO CHANGE</div>
+          <div class="img-revise-row">
+            <div class="field-icon-wrap">
+              ${ICONS.edit}
+              <input type="text" placeholder="e.g. make it evening lighting, remove the second person, use a warmer color palette" data-revise-input />
+            </div>
+            <button class="img-revise-btn" data-revise-image="${platformName}">${ICONS.regen}Regenerate Image</button>
+          </div>
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="platform-tag">${platformName} ${fmt ? "· " + fmt.label : ""}</div>
+      <div class="preview-head">
+        <div class="preview-avatar"></div>
+        <div>
+          <div class="preview-brand">Your Brand</div>
+          <div class="preview-sub">Sponsored</div>
+        </div>
+      </div>
+      ${imgHtml}
+      <div class="preview-body">
+        ${content.social_post ? `
+        <div class="prev-section">
+          <div class="row-with-actions">
+            <div class="field-label" style="margin-top:0;">${ICONS.caption}CAPTION</div>
+            <span><button class="action-btn" data-copy-caption>${ICONS.copy}Copy</button><button class="action-btn" data-regen-caption="${platformName}">${ICONS.regen}Regenerate</button></span>
+          </div>
+          <div class="preview-caption" data-caption-text>${escapeHtml(content.social_post)}</div>
+        </div>` : ""}
+        ${content.hashtags && content.hashtags.length ? `
+        <div class="prev-section">
+          <div class="row-with-actions">
+            <div class="field-label" style="margin-top:0;">${ICONS.hashtag}HASHTAGS</div>
+            <button class="action-btn" data-copy-hashtags>${ICONS.copy}Copy</button>
+          </div>
+          <div class="preview-hashtags" data-hashtags-text>${escapeHtml(content.hashtags.join(" "))}</div>
+        </div>` : ""}
+        ${content.cta ? `
+        <div class="prev-section">
+          <div class="row-with-actions">
+            <div class="field-label" style="margin-top:0;">${ICONS.cta}CALL TO ACTION</div>
+            <button class="action-btn" data-copy-cta>${ICONS.copy}Copy</button>
+          </div>
+          <span class="preview-cta-btn">${ICONS.cta}<span data-cta-text>${escapeHtml(content.cta)}</span></span>
+        </div>` : ""}
+        ${content.warnings && content.warnings.length ? `<div class="error-box">${content.warnings.map(escapeHtml).join("<br/>")}</div>` : ""}
+      </div>
+      ${imageTextHtml}
+      ${headlineHtml}
+      ${promptDebugHtml}
+    `;
+    container.appendChild(card);
+
+    const copyText = (text, btn) => {
+      navigator.clipboard.writeText(text);
+      if (btn) {
+        const original = btn.innerHTML;
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.innerHTML = original; }, 1200);
+      }
+    };
+    card.querySelector("[data-copy-headline]")?.addEventListener("click", (e) => {
+      const selected = card.querySelector(".headline-opt.selected");
+      if (selected) copyText(decodeURIComponent(selected.dataset.text), e.currentTarget);
+    });
+    card.querySelector("[data-copy-caption]")?.addEventListener("click", (e) => {
+      copyText(card.querySelector("[data-caption-text]").innerText, e.currentTarget);
+    });
+    card.querySelector("[data-copy-hashtags]")?.addEventListener("click", (e) => {
+      copyText(card.querySelector("[data-hashtags-text]").innerText, e.currentTarget);
+    });
+    card.querySelector("[data-copy-cta]")?.addEventListener("click", (e) => {
+      copyText(card.querySelector("[data-cta-text]").innerText, e.currentTarget);
+    });
+    card.querySelector("[data-copy-prompt]")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      copyText(card.querySelector("[data-prompt-text]").innerText, e.currentTarget);
+    });
+
+    card.querySelectorAll(".headline-opt").forEach(opt => {
+      opt.addEventListener("click", () => {
+        card.querySelectorAll(".headline-opt").forEach(o => o.classList.remove("selected"));
+        opt.classList.add("selected");
+      });
+    });
+
+    const reviseBtn = card.querySelector("[data-revise-image]");
+    if (reviseBtn) {
+      const reviseInputEl = card.querySelector("[data-revise-input]");
+      reviseInputEl?.addEventListener("keydown", (e) => { if (e.key === "Enter") reviseBtn.click(); });
+      reviseBtn.addEventListener("click", async () => {
+        const input = card.querySelector("[data-revise-input]");
+        const feedback = input.value.trim();
+        if (!feedback) { input.focus(); return; }
+
+        reviseBtn.disabled = true;
+        input.disabled = true;
+        const original = reviseBtn.innerHTML;
+        reviseBtn.innerHTML = `<span class="spinner"></span>`;
+
+        const imgWrap = card.querySelector(".preview-img-wrap");
+        let overlay = null;
+        if (imgWrap) {
+          overlay = document.createElement("div");
+          overlay.className = "img-regen-overlay";
+          overlay.innerHTML = `<div class="img-regen-label"><span class="spinner"></span> Regenerating image...</div>`;
+          imgWrap.appendChild(overlay);
+        }
+
+        try {
+          const res = await fetch(`${API}/regenerate-image`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              campaign_goal: body.campaign_goal,
+              content_tone: body.content_tone,
+              target_audience: body.target_audience,
+              key_message: body.key_message,
+              platform: platformName,
+              platform_formats: body.platform_formats,
+              text_on_image: body.text_on_image,
+              previous_image_prompt: content.raw_image_prompt || content.final_image_prompt,
+              user_feedback: feedback,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Image regeneration failed.");
+          }
+          const data = await res.json();
+          content.image_path = data.image_path;
+          content.final_image_prompt = data.final_image_prompt;
+          content.raw_image_prompt = data.raw_image_prompt;
+          content._imgVersion = Date.now();
+
+          const newUrl = `${API}/${data.image_path.replace(/\\/g, "/")}?v=${content._imgVersion}`;
+          const imgEl = card.querySelector(".preview-img-wrap img");
+          const downloadEl = card.querySelector(".preview-img-wrap .img-download");
+
+          await new Promise((resolve) => {
+            const preload = new Image();
+            preload.onload = resolve;
+            preload.onerror = resolve;
+            preload.src = newUrl;
+          });
+
+          if (imgEl) imgEl.src = newUrl;
+          if (downloadEl) downloadEl.href = newUrl;
+
+          const promptEl = card.querySelector("[data-prompt-text]");
+          if (promptEl) promptEl.textContent = data.final_image_prompt;
+
+          overlay?.remove();
+          input.value = "";
+          input.disabled = false;
+          reviseBtn.disabled = false;
+          reviseBtn.innerHTML = original;
+
+          card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          card.classList.remove("card-flash");
+          void card.offsetWidth;
+          card.classList.add("card-flash");
+        } catch (e) {
+          alert("Regenerate image failed: " + e.message);
+          reviseBtn.disabled = false;
+          input.disabled = false;
+          reviseBtn.innerHTML = original;
+          overlay?.remove();
+        }
+      });
+    }
+
+    const regenCaptionBtn = card.querySelector("[data-regen-caption]");
+    if (regenCaptionBtn) {
+      regenCaptionBtn.addEventListener("click", async () => {
+        regenCaptionBtn.disabled = true;
+        const original = regenCaptionBtn.innerHTML;
+        regenCaptionBtn.innerHTML = `<span class="spinner"></span>`;
+        try {
+          const res = await fetch(`${API}/regenerate-caption`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              campaign_goal: body.campaign_goal,
+              content_tone: body.content_tone,
+              target_audience: body.target_audience,
+              key_message: body.key_message,
+              platform: platformName,
+              platform_formats: body.platform_formats,
+              previous_caption: content.social_post || "",
+            }),
+          });
+          const data = await res.json();
+          content.social_post = data.social_post;
+          const captionEl = card.querySelector("[data-caption-text]");
+          if (captionEl) captionEl.textContent = data.social_post;
+          card.classList.remove("card-flash");
+          void card.offsetWidth;
+          card.classList.add("card-flash");
+        } catch (e) {
+          alert("Regenerate failed: " + e.message);
+        } finally {
+          regenCaptionBtn.disabled = false;
+          regenCaptionBtn.innerHTML = original;
+        }
+      });
+    }
+
+    const regenBtn = card.querySelector("[data-regen]");
+    if (regenBtn) {
+      regenBtn.addEventListener("click", async () => {
+        regenBtn.disabled = true;
+        const original = regenBtn.innerHTML;
+        regenBtn.innerHTML = `<span class="spinner"></span>`;
+        const prevHeadlines = Array.from(card.querySelectorAll(".headline-opt")).map(o => decodeURIComponent(o.dataset.text));
+        try {
+          const res = await fetch(`${API}/regenerate-headline`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              campaign_goal: body.campaign_goal,
+              content_tone: body.content_tone,
+              target_audience: body.target_audience,
+              key_message: body.key_message,
+              platform: platformName,
+              platform_formats: body.platform_formats,
+              previous_headlines: prevHeadlines,
+            }),
+          });
+          const data = await res.json();
+          content.headlines = data.headlines;
+          const opts = [data.headlines.primary, ...(data.headlines.alternatives || [])].filter(Boolean);
+          const optionsEl = card.querySelector(".headline-options");
+          if (optionsEl) {
+            optionsEl.innerHTML = opts.map((h, i) => `<div class="headline-opt ${i === 0 ? "selected" : ""}" data-text="${encodeURIComponent(h)}">${escapeHtml(h)}</div>`).join("");
+            optionsEl.querySelectorAll(".headline-opt").forEach(opt => {
+              opt.addEventListener("click", () => {
+                optionsEl.querySelectorAll(".headline-opt").forEach(o => o.classList.remove("selected"));
+                opt.classList.add("selected");
+              });
+            });
+          }
+          card.classList.remove("card-flash");
+          void card.offsetWidth;
+          card.classList.add("card-flash");
+        } catch (e) {
+          alert("Regenerate failed: " + e.message);
+        } finally {
+          regenBtn.disabled = false;
+          regenBtn.innerHTML = original;
+        }
+      });
+    }
+  });
+}
+
+document.getElementById("generateBtn").addEventListener("click", generate);
+loadOptions();
+</script>
+</body>
+</html>
