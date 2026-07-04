@@ -1,3 +1,5 @@
+![Screenshot](screenshot.png)
+
 # AI Marketing Content Generator — Internal Tool
 
 Generates platform-tailored marketing copy (headlines, captions, hashtags, CTAs)
